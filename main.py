@@ -6,6 +6,7 @@ from ui.dashboard import Dashboard
 
 WIDTH, HEIGHT = 1280, 760
 
+
 def main() -> None:
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
@@ -36,6 +37,11 @@ def main() -> None:
                     traditional.intensity = smart.intensity = min(2.2, smart.intensity + 0.1)
                 elif event.key == pygame.K_LEFT:
                     traditional.intensity = smart.intensity = max(0.5, smart.intensity - 0.1)
+                elif event.key == pygame.K_h:
+                    traditional.toggle_rush_hour(); smart.toggle_rush_hour()
+                elif event.key == pygame.K_e:
+                    smart.activate_emergency('SOUTH')
+                    active = smart
                 elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
                     from simulation.vehicle import Vehicle
                     dirs = ['NORTH','EAST','SOUTH','WEST']; d = dirs[event.key - pygame.K_1]
