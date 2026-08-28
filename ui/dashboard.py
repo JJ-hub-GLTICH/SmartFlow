@@ -54,16 +54,57 @@ class Dashboard:
             self.text(surf,f'{name:<11}',(rect.x+18,rect.y+y),TEXT,self.small); self.text(surf,str(a),(rect.x+135,rect.y+y),TEXT,self.small); self.text(surf,str(b),(rect.x+224,rect.y+y),GREEN_C,self.small); y+=31
         self.text(surf,'Measured live; results vary by traffic pattern.',(rect.x+18,rect.bottom-52),MUTED,self.tiny)
     def draw_intersection(self,surf,r,sim):
-        pygame.draw.rect(surf,(15,23,36),r,border_radius=18); cx,cy=r.center; road=(55,62,74)
-        pygame.draw.rect(surf,road,(cx-78,r.y,156,r.h)); pygame.draw.rect(surf,road,(r.x,cy-78,r.w,156))
+        pygame.draw.rect(surf,(10,16,27),r,border_radius=18)
+        pygame.draw.rect(surf,(42,57,79),r,1,border_radius=18)
+        old_clip = surf.get_clip(); surf.set_clip(r.inflate(-2,-2))
+        cx,cy=r.center; road=(48,55,66); road2=(58,66,79); line=(226,221,176); edge=(205,214,225)
+        road_w=196; lane_w=49; inter=196
+        # asphalt approaches and subtle shoulders
+        pygame.draw.rect(surf,road,(cx-road_w//2,r.y,road_w,r.h))
+        pygame.draw.rect(surf,road,(r.x,cy-road_w//2,r.w,road_w))
+        pygame.draw.rect(surf,road2,(cx-road_w//2,cy-road_w//2,road_w,road_w))
+        # congestion wash inside road only
         stats=sim.road_stats()
-        for d,s in stats.items():
-            if s['density']>.66:
-                overlay={'NORTH':(cx-78,r.y,76,cy-r.y-86),'SOUTH':(cx+2,cy+86,76,r.bottom-cy-86),'EAST':(cx+86,cy-78,r.right-cx-86,76),'WEST':(r.x,cy+2,cx-r.x-86,76)}[d]
-                pygame.draw.rect(surf,(86,55,62),overlay,border_radius=8)
-        for off in (-24,24): pygame.draw.line(surf,(210,210,150),(cx+off,r.y),(cx+off,r.bottom),2); pygame.draw.line(surf,(210,210,150),(r.x,cy+off),(r.right,cy+off),2)
-        pygame.draw.rect(surf,(35,45,58),(cx-78,cy-78,156,156)); pygame.draw.rect(surf,(95,110,126),(cx-86,cy-86,172,172),3)
+        overlays={'NORTH':(cx-road_w//2,r.y,road_w,cy-road_w//2-r.y),'SOUTH':(cx-road_w//2,cy+road_w//2,road_w,r.bottom-cy-road_w//2),'EAST':(cx+road_w//2,cy-road_w//2,r.right-cx-road_w//2,road_w),'WEST':(r.x,cy-road_w//2,cx-road_w//2-r.x,road_w)}
+        for d,st in stats.items():
+            if st['density']>.66: pygame.draw.rect(surf,(78,48,55),overlays[d])
+            elif st['density']>.33: pygame.draw.rect(surf,(64,58,45),overlays[d])
+        # road edges
+        for x in (cx-road_w//2,cx+road_w//2): pygame.draw.line(surf,edge,(x,r.y),(x,cy-road_w//2),2); pygame.draw.line(surf,edge,(x,cy+road_w//2),(x,r.bottom),2)
+        for y in (cy-road_w//2,cy+road_w//2): pygame.draw.line(surf,edge,(r.x,y),(cx-road_w//2,y),2); pygame.draw.line(surf,edge,(cx+road_w//2,y),(r.right,y),2)
+        # dashed lane dividers
+        def dashed(a,b,vertical=True):
+            step=36
+            if vertical:
+                y=a[1]
+                while y<b[1]: pygame.draw.line(surf,line,(a[0],y),(a[0],min(y+18,b[1])),2); y+=step
+            else:
+                x=a[0]
+                while x<b[0]: pygame.draw.line(surf,line,(x,a[1]),(min(x+18,b[0]),a[1]),2); x+=step
+        for x in (cx-lane_w,cx,cx+lane_w): dashed((x,r.y),(x,cy-road_w//2)); dashed((x,cy+road_w//2),(x,r.bottom))
+        for y in (cy-lane_w,cy,cy+lane_w): dashed((r.x,y),(cx-road_w//2,y),False); dashed((cx+road_w//2,y),(r.right,y),False)
+        # stop lines and zebra crossings
+        z=10
+        stops=sim.stop_lines(r)
+        pygame.draw.line(surf,(245,248,255),(cx-road_w//2,stops['NORTH']),(cx-3,stops['NORTH']),4)
+        pygame.draw.line(surf,(245,248,255),(cx+3,stops['SOUTH']),(cx+road_w//2,stops['SOUTH']),4)
+        pygame.draw.line(surf,(245,248,255),(stops['WEST'],cy+3),(stops['WEST'],cy+road_w//2),4)
+        pygame.draw.line(surf,(245,248,255),(stops['EAST'],cy-road_w//2),(stops['EAST'],cy-3),4)
+        for i in range(8):
+            pygame.draw.rect(surf,(218,226,236),(cx-road_w//2+i*24,cy-road_w//2-34,13,z),border_radius=2)
+            pygame.draw.rect(surf,(218,226,236),(cx-road_w//2+i*24,cy+road_w//2+24,13,z),border_radius=2)
+            pygame.draw.rect(surf,(218,226,236),(cx-road_w//2-34,cy-road_w//2+i*24,z,13),border_radius=2)
+            pygame.draw.rect(surf,(218,226,236),(cx+road_w//2+24,cy-road_w//2+i*24,z,13),border_radius=2)
+        pygame.draw.rect(surf,(35,44,56),(cx-inter//2,cy-inter//2,inter,inter),3,border_radius=10)
+        # direction arrows
+        arrow=(202,211,222)
+        def arr(points): pygame.draw.polygon(surf,arrow,points)
+        arr([(cx-30,cy-170),(cx-42,cy-145),(cx-34,cy-145),(cx-34,cy-118),(cx-26,cy-118),(cx-26,cy-145),(cx-18,cy-145)])
+        arr([(cx+30,cy+170),(cx+42,cy+145),(cx+34,cy+145),(cx+34,cy+118),(cx+26,cy+118),(cx+26,cy+145),(cx+18,cy+145)])
+        arr([(cx+170,cy-30),(cx+145,cy-42),(cx+145,cy-34),(cx+118,cy-34),(cx+118,cy-26),(cx+145,cy-26),(cx+145,cy-18)])
+        arr([(cx-170,cy+30),(cx-145,cy+42),(cx-145,cy+34),(cx-118,cy+34),(cx-118,cy+26),(cx-145,cy+26),(cx-145,cy+18)])
         for v in sim.vehicles: v.draw(surf)
-        positions={'NORTH':(cx-112,cy-112),'SOUTH':(cx+112,cy+112),'EAST':(cx+112,cy-112),'WEST':(cx-112,cy+112)}
+        positions={'NORTH':(cx-128,cy-128),'SOUTH':(cx+128,cy+128),'EAST':(cx+128,cy-128),'WEST':(cx-128,cy+128)}
         for d,p in positions.items(): self.light(surf,p,sim.signals[d].state); self.text(surf,d,(p[0]-24,p[1]-28),MUTED,self.small)
         if sim.emergency_active: self.text(surf,f'Emergency Route: {sim.emergency_direction}',(r.x+20,r.y+18),RED_C,self.h2)
+        surf.set_clip(old_clip)
