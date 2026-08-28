@@ -8,7 +8,7 @@ from simulation.traffic import Metrics
 
 BASE_SPAWN_RATES = {"NORTH": 0.78, "EAST": 0.38, "SOUTH": 0.62, "WEST": 0.34}
 RUSH_MULTIPLIERS = {"NORTH": 1.75, "EAST": 1.25, "SOUTH": 2.05, "WEST": 1.45}
-LANE_OFFSET = 24
+LANE_OFFSET = 30
 SAFE_GAP = 15
 
 class IntersectionSimulation:
@@ -145,7 +145,7 @@ class IntersectionSimulation:
                 leader = v
         survivors = []
         for v in self.vehicles:
-            if v.offscreen(rect.right, rect.bottom): self.metrics.record_clear(v.waiting_time)
+            if v.offscreen(rect): self.metrics.record_clear(v.waiting_time)
             else: survivors.append(v)
         self.vehicles = survivors
 

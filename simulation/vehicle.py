@@ -5,15 +5,15 @@ DIRECTION_VECTORS = {
     "NORTH": (0, 1), "SOUTH": (0, -1), "EAST": (-1, 0), "WEST": (1, 0)
 }
 COLORS = {
-    "NORTH": (71, 181, 255), "SOUTH": (78, 222, 128),
-    "EAST": (255, 193, 94), "WEST": (231, 107, 255),
-    "EMERGENCY": (255, 255, 255),
+    "NORTH": (65, 176, 246), "SOUTH": (79, 209, 127),
+    "EAST": (245, 176, 82), "WEST": (203, 120, 244),
+    "EMERGENCY": (245, 248, 255),
 }
 VEHICLE_TYPES = {
-    "car": (30, 16, 78.0),
-    "truck": (40, 18, 68.0),
-    "bus": (50, 18, 62.0),
-    "emergency": (38, 16, 86.0),
+    "car": (34, 17, 86.0),
+    "truck": (48, 19, 72.0),
+    "bus": (58, 20, 66.0),
+    "emergency": (42, 18, 94.0),
 }
 
 @dataclass
@@ -58,36 +58,54 @@ class Vehicle:
         return self.x
 
     def move(self, dt: float, desired_speed: float | None = None) -> None:
-        desired = max(0.0, min(self.target_speed or 75.0, desired_speed if desired_speed is not None else self.target_speed or 75.0))
-        accel = 48.0 if desired > self.speed else 92.0
-        if self.speed < desired:
-            self.speed = min(desired, self.speed + accel * dt)
-        else:
-            self.speed = max(desired, self.speed - accel * dt)
+        desired = max(0.0, min(self.target_speed or 80.0, desired_speed if desired_speed is not None else self.target_speed or 80.0))
+        accel = 56.0 if desired > self.speed else 105.0
+        self.speed = min(desired, self.speed + accel * dt) if self.speed < desired else max(desired, self.speed - accel * dt)
         vx, vy = DIRECTION_VECTORS[self.direction]
         self.x += vx * self.speed * dt
         self.y += vy * self.speed * dt
 
-    def offscreen(self, w: int, h: int) -> bool:
-        return self.x < -90 or self.x > w + 90 or self.y < -90 or self.y > h + 90
+    def offscreen(self, rect: pygame.Rect) -> bool:
+        margin = 95
+        if self.direction == "NORTH": return self.y > rect.bottom + margin
+        if self.direction == "SOUTH": return self.y < rect.y - margin
+        if self.direction == "EAST": return self.x < rect.x - margin
+        return self.x > rect.right + margin
+
+    def _oriented_points(self, rect: pygame.Rect):
+        # Nose points in travel direction to make front/rear readable.
+        if self.direction == "NORTH":
+            return [(rect.centerx, rect.bottom), (rect.x, rect.bottom-7), (rect.x, rect.y+7), (rect.centerx, rect.y), (rect.right, rect.y+7), (rect.right, rect.bottom-7)]
+        if self.direction == "SOUTH":
+            return [(rect.centerx, rect.y), (rect.right, rect.y+7), (rect.right, rect.bottom-7), (rect.centerx, rect.bottom), (rect.x, rect.bottom-7), (rect.x, rect.y+7)]
+        if self.direction == "EAST":
+            return [(rect.right, rect.centery), (rect.right-7, rect.y), (rect.x+7, rect.y), (rect.x, rect.centery), (rect.x+7, rect.bottom), (rect.right-7, rect.bottom)]
+        return [(rect.x, rect.centery), (rect.x+7, rect.bottom), (rect.right-7, rect.bottom), (rect.right, rect.centery), (rect.right-7, rect.y), (rect.x+7, rect.y)]
 
     def draw(self, surface: pygame.Surface) -> None:
         horizontal = self.direction in ("EAST", "WEST")
         rect = pygame.Rect(0, 0, self.length if horizontal else self.width, self.width if horizontal else self.length)
         rect.center = (int(self.x), int(self.y))
-        pygame.draw.rect(surface, self.color, rect, border_radius=5)
-        if self.emergency:
-            pygame.draw.rect(surface, (255, 58, 58), rect.inflate(-8, -6), border_radius=3)
-            pygame.draw.rect(surface, (55, 130, 255), (rect.centerx-3, rect.y+3, 6, rect.h-6), border_radius=2)
-        else:
-            shine = pygame.Rect(rect.x + 4, rect.y + 3, max(5, rect.w // 3), max(4, rect.h - 6))
-            pygame.draw.rect(surface, (235, 248, 255), shine, border_radius=3)
-        wheel = (28, 32, 40)
+        shadow = rect.move(3, 4)
+        pygame.draw.rect(surface, (4, 8, 14, 95), shadow, border_radius=7)
+        pygame.draw.polygon(surface, tuple(max(0, c-34) for c in self.color), self._oriented_points(rect.inflate(4, 4)))
+        pygame.draw.polygon(surface, self.color, self._oriented_points(rect))
+        pygame.draw.rect(surface, (255,255,255,55), rect.inflate(-8, -8), 1, border_radius=5)
+
         if horizontal:
-            for ox in (5, rect.w - 9):
-                pygame.draw.rect(surface, wheel, (rect.x + ox, rect.y - 2, 5, 4), border_radius=2)
-                pygame.draw.rect(surface, wheel, (rect.x + ox, rect.bottom - 2, 5, 4), border_radius=2)
+            cabin = pygame.Rect(0, 0, max(11, rect.w//3), rect.h-6); cabin.centery = rect.centery
+            cabin.centerx = rect.centerx + (-5 if self.direction == "EAST" else 5)
+            lights = [(rect.x+2, rect.y+4), (rect.x+2, rect.bottom-7)] if self.direction == "WEST" else [(rect.right-5, rect.y+4), (rect.right-5, rect.bottom-7)]
+            wheel_rects = [(rect.x+7, rect.y-3, 7, 5), (rect.right-15, rect.y-3, 7, 5), (rect.x+7, rect.bottom-2, 7, 5), (rect.right-15, rect.bottom-2, 7, 5)]
         else:
-            for oy in (5, rect.h - 9):
-                pygame.draw.rect(surface, wheel, (rect.x - 2, rect.y + oy, 4, 5), border_radius=2)
-                pygame.draw.rect(surface, wheel, (rect.right - 2, rect.y + oy, 4, 5), border_radius=2)
+            cabin = pygame.Rect(0, 0, rect.w-6, max(11, rect.h//3)); cabin.centerx = rect.centerx
+            cabin.centery = rect.centery + (-5 if self.direction == "NORTH" else 5)
+            lights = [(rect.x+4, rect.bottom-5), (rect.right-7, rect.bottom-5)] if self.direction == "NORTH" else [(rect.x+4, rect.y+2), (rect.right-7, rect.y+2)]
+            wheel_rects = [(rect.x-3, rect.y+8, 5, 7), (rect.x-3, rect.bottom-16, 5, 7), (rect.right-2, rect.y+8, 5, 7), (rect.right-2, rect.bottom-16, 5, 7)]
+        pygame.draw.rect(surface, (28, 45, 62), cabin, border_radius=4)
+        for wr in wheel_rects: pygame.draw.rect(surface, (13, 17, 24), wr, border_radius=2)
+        for lx, ly in lights: pygame.draw.rect(surface, (255, 236, 150), (lx, ly, 4, 3), border_radius=1)
+        if self.emergency:
+            bar = pygame.Rect(0,0, 14 if horizontal else rect.w-5, 5 if horizontal else 14); bar.center = rect.center
+            pygame.draw.rect(surface, (255, 58, 58), bar, border_radius=2)
+            pygame.draw.circle(surface, (72, 160, 255), rect.center, 3)
