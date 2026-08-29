@@ -7,10 +7,10 @@ class Scenario:
     title: str
     subtitle: str
     seed: int
-    # Nine real seconds per controller keeps the expo fast while preserving a fair
-    # same-seed, same-demand comparison.
-    duration: float = 9.0
-    real_seconds_per_test: float = 9.0
+    # 15 real seconds per controller. Simulation runs at 2x so vehicles reach
+    # the intersection early enough for the signal decisions to matter.
+    duration: float = 30.0
+    real_seconds_per_test: float = 15.0
     initial_counts: dict[str, int] = field(default_factory=dict)
     base_rates: dict[str, float] = field(default_factory=dict)
     changing_rates: tuple[float, dict[str, float]] | None = None
@@ -26,8 +26,6 @@ class Scenario:
 SCENARIOS: dict[str, Scenario] = {
     "rush": Scenario(
         key="rush", title="RUSH HOUR", subtitle="Heavy traffic during peak time", seed=48291,
-        # Clear demand imbalance: SOUTH is visibly busier, giving SmartFlow a real
-        # adaptive decision to make while Traditional follows its fixed rotation.
         initial_counts={"NORTH": 4, "EAST": 3, "SOUTH": 11, "WEST": 2},
         base_rates={"NORTH": .35, "EAST": .22, "SOUTH": .78, "WEST": .18}, rush=True,
         explanation="Traffic became heavy on several roads. SmartFlow responded to the growing queues and gave priority where more vehicles were waiting.",
@@ -35,7 +33,7 @@ SCENARIOS: dict[str, Scenario] = {
     "emergency": Scenario(
         key="emergency", title="EMERGENCY", subtitle="An ambulance needs priority", seed=91364,
         initial_counts={"NORTH": 4, "EAST": 5, "SOUTH": 5, "WEST": 4},
-        base_rates={"NORTH": .55, "EAST": .58, "SOUTH": .70, "WEST": .50}, emergency_direction="SOUTH", emergency_at=2.5,
+        base_rates={"NORTH": .55, "EAST": .58, "SOUTH": .70, "WEST": .50}, emergency_direction="SOUTH", emergency_at=5.0,
         explanation="Traditional continued its normal signal cycle. SmartFlow detected the emergency and temporarily prioritized the ambulance route.",
     ),
     "uneven": Scenario(
@@ -48,8 +46,7 @@ SCENARIOS: dict[str, Scenario] = {
         key="changing", title="CHANGING TRAFFIC", subtitle="Traffic demand shifts between roads", seed=76108,
         initial_counts={"NORTH": 3, "EAST": 9, "SOUTH": 2, "WEST": 3},
         base_rates={"NORTH": .30, "EAST": .72, "SOUTH": .25, "WEST": .28},
-        # The busiest approach changes halfway through the same nine-second test.
-        changing_rates=(4.5, {"NORTH": .25, "EAST": .25, "SOUTH": .28, "WEST": .95}),
+        changing_rates=(15.0, {"NORTH": .25, "EAST": .25, "SOUTH": .28, "WEST": .95}),
         explanation="The busiest road changed during the test. SmartFlow changed its priority as the traffic situation changed.",
     ),
 }
