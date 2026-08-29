@@ -70,7 +70,7 @@ class SmartFlowOptimizer:
         return Decision(direction, round(green_time, 1), scores, reason)
 
 class TraditionalScheduler:
-    def __init__(self, fixed_green: float = 12.0):
+    def __init__(self, fixed_green: float = 10.0):
         self.fixed_green = fixed_green
         self.index = -1
 
