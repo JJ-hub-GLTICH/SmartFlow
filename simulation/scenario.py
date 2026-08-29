@@ -7,8 +7,8 @@ class Scenario:
     title: str
     subtitle: str
     seed: int
-    duration: float = 24.0
-    real_seconds_per_test: float = 14.0
+    duration: float = 15.0
+    real_seconds_per_test: float = 15.0
     initial_counts: dict[str, int] = field(default_factory=dict)
     base_rates: dict[str, float] = field(default_factory=dict)
     changing_rates: tuple[float, dict[str, float]] | None = None
