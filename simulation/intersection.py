@@ -205,7 +205,6 @@ class IntersectionSimulation:
                         "signal": self.signals[d].state, "green_time": self.signals[d].green_elapsed}
         return stats
 
-
     def _record_priority_step(self, direction: str, stats: dict):
         if self.priority_log and self.priority_log[-1] == direction:
             return
@@ -215,6 +214,8 @@ class IntersectionSimulation:
         from simulation.scenario import ScenarioResult
         stats = self.road_stats()
         waiting = sum(s["waiting"] for s in stats.values())
+        active_waits = [v.waiting_time for v in self.vehicles]
+        self.metrics.finalize(active_waits)
         steps = []
         if self.mode == "SMARTFLOW" and self.scenario:
             if self.scenario.key == "emergency":
