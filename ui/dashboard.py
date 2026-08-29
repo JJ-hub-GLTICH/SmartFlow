@@ -147,12 +147,10 @@ class Dashboard:
         self.lab_buttons=[]; self.result_buttons=[]
         if runner.state=="idle": return
         w,h=surf.get_size()
-        # Blur and darken the live simulation so the scenario status card is the visual focus.
-        snapshot=surf.copy()
-        small=pygame.transform.smoothscale(snapshot,(max(1,w//8),max(1,h//8)))
-        blurred=pygame.transform.smoothscale(small,(w,h))
-        surf.blit(blurred,(0,0))
-        shade=pygame.Surface((w,h),pygame.SRCALPHA); shade.fill((2,6,14,145)); surf.blit(shade,(0,0))
+        # Keep the live simulation crisp. The status card is highlighted without blurring the animation.
+        shade=pygame.Surface((w,h),pygame.SRCALPHA)
+        shade.fill((2,6,14,72))
+        surf.blit(shade,(0,0))
         if runner.state=="menu":
             box=pygame.Rect(w//2-330,h//2-245,660,490)
             pygame.draw.rect(surf,PANEL,box,border_radius=18); pygame.draw.rect(surf,ACCENT,box,2,border_radius=18)
@@ -191,7 +189,7 @@ class Dashboard:
         self.text(surf,"TRADITIONAL",(trad_card.x+20,trad_card.y+15),YELLOW_C,self.h2); self.text(surf,"SMARTFLOW",(smart_card.x+20,smart_card.y+15),GREEN_C,self.h2)
         rows=[("Average Wait",f"{t.avg_wait:.1f}s",f"{sm.avg_wait:.1f}s"),("Vehicles Cleared",t.vehicles_cleared,sm.vehicles_cleared),("Still Waiting",t.vehicles_waiting,sm.vehicles_waiting),("Maximum Wait",f"{t.max_wait:.1f}s",f"{sm.max_wait:.1f}s")]
         if sc.key=="emergency": rows=[("Emergency Wait",f"{t.emergency_wait or 0:.1f}s",f"{sm.emergency_wait or 0:.1f}s"),("Emergency Clear",f"{t.emergency_clear_time or 0:.1f}s",f"{sm.emergency_clear_time or 0:.1f}s"),("Overall Avg Wait",f"{t.avg_wait:.1f}s",f"{sm.avg_wait:.1f}s"),("Vehicles Cleared",t.vehicles_cleared,sm.vehicles_cleared)]
-        if sc.key=="changing": rows[-1]=("Priority Changes",t.priority_changes,sm.priority_changes)
+        if sc.key=="changing": rows[-1]=( "Priority Changes",t.priority_changes,sm.priority_changes)
         yy=trad_card.y+52
         for name,a,b in rows:
             self.text(surf,name,(trad_card.x+20,yy),MUTED,self.small); self.text(surf,str(a),(trad_card.x+235,yy),TEXT,self.small)
