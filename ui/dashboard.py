@@ -10,6 +10,8 @@ class Dashboard:
         pygame.font.init()
         self.title=pygame.font.SysFont('arial',34,bold=True); self.h2=pygame.font.SysFont('arial',21,bold=True)
         self.font=pygame.font.SysFont('arial',18); self.small=pygame.font.SysFont('arial',15); self.tiny=pygame.font.SysFont('arial',13)
+        self.lab_buttons = []
+        self.result_buttons = []
     def text(self,surf,msg,pos,color=TEXT,font=None): surf.blit((font or self.font).render(str(msg),True,color),pos)
     def panel(self,surf,rect,title):
         pygame.draw.rect(surf,PANEL,rect,border_radius=14); pygame.draw.rect(surf,(42,57,79),rect,1,border_radius=14)
@@ -22,7 +24,7 @@ class Dashboard:
         if active.rush_hour: self.text(surf,'RUSH HOUR ACTIVE',(36,121),YELLOW_C,self.font)
         if smart.emergency_active: self.text(surf,f'EMERGENCY PRIORITY ACTIVE', (36,145), RED_C, self.small)
         self.text(surf,'SPACE pause | M mode | R reset',(36,172),MUTED,self.tiny)
-        self.text(surf,'H rush hour | E emergency | arrows tune',(36,190),MUTED,self.tiny)
+        self.text(surf,'S scenario lab | H rush | E emergency',(36,190),MUTED,self.tiny)
         self.text(surf,f'Speed {active.speed:.1f}x   Intensity {active.intensity:.1f}x',(36,211),TEXT,self.small)
         self.panel(surf,pygame.Rect(28,240,240,265),'LIVE TRAFFIC')
         y=276; stats=active.road_stats()
@@ -108,3 +110,66 @@ class Dashboard:
         for d,p in positions.items(): self.light(surf,p,sim.signals[d].state); self.text(surf,d,(p[0]-24,p[1]-28),MUTED,self.small)
         if sim.emergency_active: self.text(surf,f'Emergency Route: {sim.emergency_direction}',(r.x+20,r.y+18),RED_C,self.h2)
         surf.set_clip(old_clip)
+
+
+    def draw_scenario_overlay(self, surf, runner):
+        from simulation.scenario import SCENARIOS
+        self.lab_buttons = []; self.result_buttons = []
+        if runner.state == "idle":
+            return
+        w,h = surf.get_size()
+        shade = pygame.Surface((w,h), pygame.SRCALPHA); shade.fill((2,6,14,168)); surf.blit(shade,(0,0))
+        if runner.state == "menu":
+            box = pygame.Rect(w//2-330, h//2-245, 660, 490)
+            pygame.draw.rect(surf, PANEL, box, border_radius=18); pygame.draw.rect(surf, ACCENT, box, 2, border_radius=18)
+            self.text(surf, "SMARTFLOW SCENARIO LAB", (box.x+72, box.y+32), ACCENT, self.title)
+            self.text(surf, "Choose a traffic situation to test", (box.x+176, box.y+78), TEXT, self.font)
+            y = box.y+128
+            for key, sc in SCENARIOS.items():
+                r = pygame.Rect(box.x+70, y, 520, 70); self.lab_buttons.append((r,key))
+                pygame.draw.rect(surf, (30,45,68), r, border_radius=12); pygame.draw.rect(surf, (57,82,112), r, 1, border_radius=12)
+                self.text(surf, sc.title, (r.x+24, r.y+12), GREEN_C if key!='emergency' else RED_C, self.h2)
+                self.text(surf, sc.subtitle, (r.x+24, r.y+39), MUTED, self.small)
+                y += 82
+            self.text(surf, "Pick one. SmartFlow runs the fair experiment automatically.", (box.x+108, box.bottom-38), MUTED, self.small)
+        elif runner.state in {"intro", "traditional", "resetting", "smartflow"}:
+            sc = runner.scenario; box = pygame.Rect(w//2-260, 34, 520, 118)
+            pygame.draw.rect(surf, PANEL, box, border_radius=14); pygame.draw.rect(surf, (57,82,112), box, 1, border_radius=14)
+            title = f"SCENARIO: {sc.title}" if runner.state == "intro" else "RESETTING SAME SCENARIO..." if runner.state == "resetting" else ("TRADITIONAL TEST" if runner.state == "traditional" else "SMARTFLOW TEST")
+            sub = "Same traffic conditions will be tested on both systems." if runner.state == "intro" else "Fixed-time signal control" if runner.state == "traditional" else "Adaptive traffic control" if runner.state == "smartflow" else "Restoring the exact same seed, vehicles, and events."
+            self.text(surf, title, (box.x+28, box.y+24), ACCENT, self.h2)
+            self.text(surf, sub, (box.x+28, box.y+58), TEXT, self.font)
+            if runner.state in {"traditional", "smartflow"}:
+                pct = min(1, runner.active_sim.time / max(.1, sc.duration))
+                pygame.draw.rect(surf, (37,49,66), (box.x+28, box.y+90, 464, 10), border_radius=5)
+                pygame.draw.rect(surf, GREEN_C if runner.state=="smartflow" else YELLOW_C, (box.x+28, box.y+90, int(464*pct), 10), border_radius=5)
+        elif runner.state == "results":
+            self._draw_results(surf, runner)
+
+    def _draw_results(self, surf, runner):
+        sc = runner.scenario; t = runner.results.get("TRADITIONAL"); sm = runner.results.get("SMARTFLOW")
+        w,h = surf.get_size(); box = pygame.Rect(w//2-395, h//2-325, 790, 650)
+        pygame.draw.rect(surf, PANEL, box, border_radius=18); pygame.draw.rect(surf, ACCENT, box, 2, border_radius=18)
+        self.text(surf, f"{sc.title} — RESULTS", (box.x+34, box.y+24), ACCENT, self.title)
+        self.text(surf, "Same traffic conditions • Same starting conditions • Same simulation duration", (box.x+36, box.y+70), MUTED, self.small)
+        y=112; self.text(surf,"Metric",(box.x+48,y),MUTED,self.small); self.text(surf,"Traditional",(box.x+330,y),YELLOW_C,self.small); self.text(surf,"SmartFlow",(box.x+500,y),GREEN_C,self.small)
+        rows = [("Average Wait", f"{t.avg_wait:.1f}s", f"{sm.avg_wait:.1f}s"),("Vehicles Cleared", t.vehicles_cleared, sm.vehicles_cleared),("Still Waiting", t.vehicles_waiting, sm.vehicles_waiting),("Maximum Wait", f"{t.max_wait:.1f}s", f"{sm.max_wait:.1f}s")]
+        if sc.key == "emergency": rows = [("Emergency Wait", f"{t.emergency_wait or 0:.1f}s", f"{sm.emergency_wait or 0:.1f}s"),("Emergency Clear Time", f"{t.emergency_clear_time or 0:.1f}s", f"{sm.emergency_clear_time or 0:.1f}s"),("Overall Average Wait", f"{t.avg_wait:.1f}s", f"{sm.avg_wait:.1f}s"),("Vehicles Cleared", t.vehicles_cleared, sm.vehicles_cleared)]
+        if sc.key == "changing": rows[-1] = ("Priority Changes", t.priority_changes, sm.priority_changes)
+        y += 30
+        for name,a,b in rows:
+            self.text(surf,name,(box.x+48,y),TEXT,self.font); self.text(surf,str(a),(box.x+340,y),TEXT,self.font); self.text(surf,str(b),(box.x+510,y),GREEN_C,self.font); y += 34
+        wait_delta = t.avg_wait - sm.avg_wait; pct = (wait_delta / t.avg_wait * 100) if t.avg_wait else 0
+        self.text(surf,"WHY DID SMARTFLOW PERFORM BETTER?",(box.x+48,y+14),ACCENT,self.h2)
+        self.text(surf,"Traditional followed a fixed signal schedule.",(box.x+48,y+48),TEXT,self.small)
+        self.text(surf,sc.explanation,(box.x+48,y+72),TEXT,self.small)
+        result = f"SmartFlow reduced average waiting by {pct:.0f}%" if wait_delta > 0 else "SmartFlow adapted its choices, but average wait was similar in this short run"
+        self.text(surf,"RESULT:",(box.x+48,y+104),MUTED,self.small); self.text(surf,result,(box.x+118,y+104),GREEN_C if wait_delta>0 else YELLOW_C,self.small)
+        self.text(surf,"WHAT SMARTFLOW DID",(box.x+48,y+146),ACCENT,self.h2)
+        for i, step in enumerate(sm.smart_steps[:4], 1): self.text(surf,f"{i}. {step}",(box.x+70,y+176+i*24),TEXT,self.small)
+        labels=[("RUN AGAIN","again"),("CHOOSE ANOTHER SCENARIO","choose"),("RETURN TO LIVE SIMULATION","live")]
+        bx=box.x+55
+        for label,action in labels:
+            r=pygame.Rect(bx,box.bottom-62,210,38); self.result_buttons.append((r,action))
+            pygame.draw.rect(surf,(30,45,68),r,border_radius=10); pygame.draw.rect(surf,ACCENT,r,1,border_radius=10)
+            self.text(surf,label,(r.x+14,r.y+10),TEXT,self.small); bx += 235
