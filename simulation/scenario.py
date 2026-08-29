@@ -1,13 +1,14 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+
 @dataclass(frozen=True)
 class Scenario:
     key: str
     title: str
     subtitle: str
     seed: int
-    duration: float = 28.0
-    real_seconds_per_test: float = 10.0
+    duration: float = 24.0
+    real_seconds_per_test: float = 14.0
     initial_counts: dict[str, int] = field(default_factory=dict)
     base_rates: dict[str, float] = field(default_factory=dict)
     changing_rates: tuple[float, dict[str, float]] | None = None
@@ -98,21 +99,33 @@ class ScenarioRunner:
         if self.state == "intro":
             self.message_timer -= dt
             if self.message_timer <= 0:
-                traditional.paused = False; self.active_sim = traditional; self.state = "traditional"; self.elapsed_real = 0.0
+                traditional.paused = False
+                self.active_sim = traditional
+                self.state = "traditional"
+                self.elapsed_real = 0.0
         elif self.state == "traditional":
             if traditional.time >= self.scenario.duration:
-                traditional.paused = True; self.results["TRADITIONAL"] = traditional.scenario_result()
-                self._prepare(smart, "SMARTFLOW", rect); self.active_sim = smart; self.state = "resetting"; self.message_timer = 1.2
+                traditional.paused = True
+                self.results["TRADITIONAL"] = traditional.scenario_result()
+                self._prepare(smart, "SMARTFLOW", rect)
+                self.active_sim = smart
+                self.state = "resetting"
+                self.message_timer = 1.2
         elif self.state == "resetting":
             self.message_timer -= dt
             if self.message_timer <= 0:
-                smart.paused = False; self.state = "smartflow"
+                smart.paused = False
+                self.state = "smartflow"
         elif self.state == "smartflow":
             if smart.time >= self.scenario.duration:
-                smart.paused = True; self.results["SMARTFLOW"] = smart.scenario_result()
+                smart.paused = True
+                self.results["SMARTFLOW"] = smart.scenario_result()
                 self.state = "results"
         return self.active_sim
 
     def return_live(self, traditional, smart):
-        self.state = "idle"; self.active_sim = None
-        traditional.reset(); smart.reset(); traditional.paused = smart.paused = False
+        self.state = "idle"
+        self.active_sim = None
+        traditional.reset()
+        smart.reset()
+        traditional.paused = smart.paused = False
