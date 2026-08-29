@@ -35,10 +35,18 @@ class IntersectionSimulation:
         self.decision = Decision("NORTH", 0, {}, "Initializing signals")
         self.emergency_direction: str | None = None
         self.emergency_active = False
+        self.scenario = None
+        self.scenario_mode = None
+        self.scenario_rates = BASE_SPAWN_RATES.copy()
+        self.scenario_emergency_spawned = False
+        self.emergency_vehicle_wait = 0.0
+        self.emergency_clear_time = None
+        self.priority_log: list[str] = []
         self._seed_initial_traffic()
 
     def _seed_initial_traffic(self):
-        for d, count in {"NORTH": 5, "SOUTH": 4, "EAST": 2, "WEST": 3}.items():
+        counts = self.scenario.initial_counts if self.scenario else {"NORTH": 5, "SOUTH": 4, "EAST": 2, "WEST": 3}
+        for d, count in counts.items():
             for i in range(count):
                 self.vehicles.append(Vehicle(d, 0, 0, self.time - i * .4, vehicle_type=self._vehicle_type()))
 
@@ -46,6 +54,16 @@ class IntersectionSimulation:
         mode, speed, intensity = self.mode, self.speed, self.intensity
         self.__init__(mode, self.seed)
         self.speed, self.intensity = speed, intensity
+
+    def configure_scenario(self, scenario, mode: str):
+        self.__init__(mode, scenario.seed)
+        self.scenario = scenario
+        self.scenario_mode = mode
+        self.scenario_rates = scenario.base_rates.copy()
+        self.rush_hour = scenario.rush
+        self.rush_factor = 0.0 if scenario.rush else self.rush_factor
+        self.vehicles.clear()
+        self._seed_initial_traffic()
 
     def toggle_rush_hour(self):
         self.rush_hour = not self.rush_hour
@@ -75,6 +93,7 @@ class IntersectionSimulation:
         self.last_rect = rect.copy()
         self._align_seeded(rect)
         for d in DIRECTIONS: self.last_green[d] += dt
+        self._apply_scenario_events()
         self._spawn(dt, rect)
         self._signals(dt)
         self._vehicles(dt, rect)
@@ -91,11 +110,25 @@ class IntersectionSimulation:
         roll = self.rng.random()
         return "bus" if roll > .93 else "truck" if roll > .80 else "car"
 
+    def _apply_scenario_events(self):
+        if not self.scenario:
+            return
+        if self.scenario.changing_rates and self.time >= self.scenario.changing_rates[0]:
+            self.scenario_rates = self.scenario.changing_rates[1].copy()
+        if (self.scenario.emergency_direction and self.scenario.emergency_at is not None
+                and self.time >= self.scenario.emergency_at and not self.scenario_emergency_spawned):
+            self.emergency_direction = self.scenario.emergency_direction
+            self.emergency_active = self.mode == "SMARTFLOW"
+            self.scenario_emergency_spawned = True
+
     def _spawn(self, dt, rect):
-        if self.emergency_active and not any(v.emergency for v in self.vehicles):
+        if self.scenario_emergency_spawned and self.scenario and self.scenario.emergency_direction and not any(v.emergency for v in self.vehicles) and self.emergency_clear_time is None:
+            x, y = self.spawn_pos(self.scenario.emergency_direction, rect)
+            self.vehicles.append(Vehicle(self.scenario.emergency_direction, x, y, self.time, emergency=True))
+        elif self.emergency_active and not any(v.emergency for v in self.vehicles):
             x, y = self.spawn_pos(self.emergency_direction or "SOUTH", rect)
             self.vehicles.append(Vehicle(self.emergency_direction or "SOUTH", x, y, self.time, emergency=True))
-        for d, base in BASE_SPAWN_RATES.items():
+        for d, base in self.scenario_rates.items():
             rate = base * self.intensity * (1 + self.rush_factor * (RUSH_MULTIPLIERS[d] - 1))
             self.spawn_timers[d] -= dt * rate
             if self.spawn_timers[d] <= 0:
@@ -118,6 +151,8 @@ class IntersectionSimulation:
             emergency = self.emergency_direction if self.emergency_active and self.mode == "SMARTFLOW" else None
             self.decision = self.optimizer.choose(stats, self.last_green, self.current, emergency) if self.mode == "SMARTFLOW" else self.traditional.next()
             self.current = self.decision.direction
+            if self.mode == "SMARTFLOW":
+                self._record_priority_step(self.current, stats)
             self.last_green[self.current] = 0.0
             self.phase = "GREEN"; self.phase_remaining = self.decision.green_time
             self.metrics.signal_changes += 1
@@ -141,16 +176,19 @@ class IntersectionSimulation:
                         desired = min(desired, max(0.0, (gap - SAFE_GAP) * 1.6))
                 v.stopped = desired < 3.0 and (red_stop or leader is not None)
                 if v.stopped: v.waiting_time += dt
+                if v.emergency and v.stopped: self.emergency_vehicle_wait += dt
                 v.move(dt, desired)
                 leader = v
         survivors = []
         for v in self.vehicles:
-            if v.offscreen(rect): self.metrics.record_clear(v.waiting_time)
+            if v.offscreen(rect):
+                if v.emergency and self.emergency_clear_time is None: self.emergency_clear_time = self.time
+                self.metrics.record_clear(v.waiting_time)
             else: survivors.append(v)
         self.vehicles = survivors
 
     def _check_emergency_clear(self, rect):
-        if self.emergency_active and not any(v.emergency for v in self.vehicles):
+        if self.emergency_active and not any(v.emergency for v in self.vehicles) and (not self.scenario or self.emergency_clear_time is not None):
             self.emergency_active = False
             self.emergency_direction = None
 
@@ -166,3 +204,31 @@ class IntersectionSimulation:
                         "avg_wait": sum(v.waiting_time for v in cars) / len(cars) if cars else 0.0,
                         "signal": self.signals[d].state, "green_time": self.signals[d].green_elapsed}
         return stats
+
+
+    def _record_priority_step(self, direction: str, stats: dict):
+        if self.priority_log and self.priority_log[-1] == direction:
+            return
+        self.priority_log.append(direction)
+
+    def scenario_result(self):
+        from simulation.scenario import ScenarioResult
+        stats = self.road_stats()
+        waiting = sum(s["waiting"] for s in stats.values())
+        steps = []
+        if self.mode == "SMARTFLOW" and self.scenario:
+            if self.scenario.key == "emergency":
+                steps = ["Detected emergency vehicle", f"Prioritized {self.scenario.emergency_direction} route", "Changed the signal safely", "Allowed the emergency vehicle through"]
+            else:
+                seen = []
+                for d in self.priority_log:
+                    if d not in seen: seen.append(d)
+                top = seen[0] if seen else max(stats, key=lambda d: stats[d]["waiting"])
+                steps = [f"Detected heavier traffic on {top}", f"Gave {top} higher priority", "Allowed waiting vehicles to clear", "Re-evaluated traffic conditions"]
+                if self.scenario.key == "changing" and len(seen) > 1:
+                    steps[1] = f"Changed priority from {seen[0]} to {seen[-1]}"
+        return ScenarioResult(
+            mode=self.mode, avg_wait=self.metrics.avg_wait, vehicles_cleared=self.metrics.cleared,
+            vehicles_waiting=waiting, max_wait=self.metrics.max_wait, signal_changes=self.metrics.signal_changes,
+            emergency_wait=self.emergency_vehicle_wait if self.scenario and self.scenario.key == "emergency" else None,
+            emergency_clear_time=self.emergency_clear_time, priority_changes=max(0, len(self.priority_log)-1), smart_steps=steps)

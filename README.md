@@ -16,6 +16,7 @@ SmartFlow is a Python/Pygame Computer Science Expo prototype demonstrating algor
 - Emergency Vehicle Mode that gives temporary priority to the emergency route.
 - Live traffic dashboard with LOW / MEDIUM / HIGH density, signal state, and flow status.
 - Performance comparison using actual simulated metrics.
+- Visitor-selectable Scenario Lab that automatically compares Traditional and SmartFlow runs.
 
 ## Traditional Traffic Control
 
@@ -51,6 +52,21 @@ Press `H` to toggle Rush Hour Mode. Traffic demand ramps up over roughly 30 seco
 ## Emergency Vehicle Mode
 
 Press `E` to activate an emergency demonstration in SmartFlow mode. A distinct emergency vehicle enters from the South route. SmartFlow detects the emergency route, safely transitions signals, gives that route temporary highest priority, lets the vehicle pass through the intersection, and then returns to normal adaptive behavior.
+
+## Scenario Lab
+
+Press `S` to open the SmartFlow Scenario Lab. Visitors choose a traffic situation, and the app automatically runs the exact same deterministic scenario twice: first with Traditional fixed-time traffic control, then with SmartFlow adaptive traffic control. The presenter does not need to switch modes, reset the simulation, or calculate results manually.
+
+Available scenarios:
+
+- Rush Hour
+- Emergency Vehicle
+- Uneven Traffic
+- Changing Traffic
+
+After both tests finish, SmartFlow shows a results popup comparing the two systems with measurements from the simulation, such as average wait, vehicles cleared, vehicles still waiting, maximum wait, emergency wait, or priority changes depending on the scenario. The comparison uses the same seed, starting traffic, traffic demand, events, and duration for both runs; only the signal-control method changes.
+
+SmartFlow is a prototype/simulation for demonstration and education. It does not directly control real-world traffic lights.
 
 ## Performance Comparison
 
@@ -103,6 +119,7 @@ python main.py
 - `R` — reset both simulations
 - `UP/DOWN` — adjust simulation speed
 - `LEFT/RIGHT` — adjust traffic intensity
+- `S` — open Scenario Lab
 - `H` — toggle Rush Hour Mode
 - `E` — activate Emergency Vehicle Mode in SmartFlow
 - `1/2/3/4` — manually inject North/East/South/West vehicles into the displayed simulation
