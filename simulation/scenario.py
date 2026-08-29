@@ -7,8 +7,10 @@ class Scenario:
     title: str
     subtitle: str
     seed: int
-    duration: float = 15.0
-    real_seconds_per_test: float = 15.0
+    # The demo runs for 9 real seconds while simulating 18 seconds of traffic.
+    # This keeps the expo fast without starving the adaptive algorithm of enough events to react.
+    duration: float = 18.0
+    real_seconds_per_test: float = 9.0
     initial_counts: dict[str, int] = field(default_factory=dict)
     base_rates: dict[str, float] = field(default_factory=dict)
     changing_rates: tuple[float, dict[str, float]] | None = None
@@ -24,8 +26,10 @@ class Scenario:
 SCENARIOS: dict[str, Scenario] = {
     "rush": Scenario(
         key="rush", title="RUSH HOUR", subtitle="Heavy traffic during peak time", seed=48291,
-        initial_counts={"NORTH": 7, "EAST": 6, "SOUTH": 8, "WEST": 6},
-        base_rates={"NORTH": .95, "EAST": .78, "SOUTH": 1.05, "WEST": .84}, rush=True,
+        # Deliberately realistic imbalance: SOUTH is the busiest approach, so an adaptive
+        # controller has a clear decision to make instead of following the fixed rotation.
+        initial_counts={"NORTH": 5, "EAST": 4, "SOUTH": 10, "WEST": 3},
+        base_rates={"NORTH": .45, "EAST": .25, "SOUTH": .85, "WEST": .20}, rush=True,
         explanation="Traffic became heavy on several roads. SmartFlow responded to the growing queues and gave priority where more vehicles were waiting.",
     ),
     "emergency": Scenario(
@@ -37,14 +41,15 @@ SCENARIOS: dict[str, Scenario] = {
     "uneven": Scenario(
         key="uneven", title="UNEVEN TRAFFIC", subtitle="One road becomes much busier", seed=27440,
         initial_counts={"NORTH": 2, "EAST": 10, "SOUTH": 3, "WEST": 6},
-        base_rates={"NORTH": .30, "EAST": 1.18, "SOUTH": .34, "WEST": .72},
+        base_rates={"NORTH": .25, "EAST": .90, "SOUTH": .25, "WEST": .45},
         explanation="One road had much more traffic than the others. SmartFlow recognized the imbalance and gave that road priority.",
     ),
     "changing": Scenario(
         key="changing", title="CHANGING TRAFFIC", subtitle="Traffic demand shifts between roads", seed=76108,
-        initial_counts={"NORTH": 4, "EAST": 9, "SOUTH": 3, "WEST": 4},
-        base_rates={"NORTH": .42, "EAST": 1.08, "SOUTH": .36, "WEST": .48},
-        changing_rates=(14.0, {"NORTH": .38, "EAST": .42, "SOUTH": .40, "WEST": 1.20}),
+        initial_counts={"NORTH": 4, "EAST": 8, "SOUTH": 3, "WEST": 4},
+        base_rates={"NORTH": .38, "EAST": .80, "SOUTH": .30, "WEST": .35},
+        # The busiest approach changes halfway through the simulated test.
+        changing_rates=(9.0, {"NORTH": .32, "EAST": .30, "SOUTH": .34, "WEST": 1.00}),
         explanation="The busiest road changed during the test. SmartFlow changed its priority as the traffic situation changed.",
     ),
 }
@@ -104,19 +109,22 @@ class ScenarioRunner:
                 self.state = "traditional"
                 self.elapsed_real = 0.0
         elif self.state == "traditional":
+            self.elapsed_real += dt
             if traditional.time >= self.scenario.duration:
                 traditional.paused = True
                 self.results["TRADITIONAL"] = traditional.scenario_result()
                 self._prepare(smart, "SMARTFLOW", rect)
                 self.active_sim = smart
                 self.state = "resetting"
-                self.message_timer = 1.2
+                self.message_timer = 0.7
         elif self.state == "resetting":
             self.message_timer -= dt
             if self.message_timer <= 0:
                 smart.paused = False
                 self.state = "smartflow"
+                self.elapsed_real = 0.0
         elif self.state == "smartflow":
+            self.elapsed_real += dt
             if smart.time >= self.scenario.duration:
                 smart.paused = True
                 self.results["SMARTFLOW"] = smart.scenario_result()
