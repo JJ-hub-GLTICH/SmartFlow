@@ -9,11 +9,13 @@ COLORS = {
     "EAST": (245, 176, 82), "WEST": (203, 120, 244),
     "EMERGENCY": (245, 248, 255),
 }
+# Faster visual traffic so vehicles reach the junction early in a 15-second
+# expo test, while keeping different vehicle types visibly distinct.
 VEHICLE_TYPES = {
-    "car": (34, 17, 86.0),
-    "truck": (48, 19, 72.0),
-    "bus": (58, 20, 66.0),
-    "emergency": (42, 18, 94.0),
+    "car": (34, 17, 108.0),
+    "truck": (48, 19, 92.0),
+    "bus": (58, 20, 84.0),
+    "emergency": (42, 18, 118.0),
 }
 
 @dataclass
@@ -58,8 +60,8 @@ class Vehicle:
         return self.x
 
     def move(self, dt: float, desired_speed: float | None = None) -> None:
-        desired = max(0.0, min(self.target_speed or 80.0, desired_speed if desired_speed is not None else self.target_speed or 80.0))
-        accel = 56.0 if desired > self.speed else 105.0
+        desired = max(0.0, min(self.target_speed or 100.0, desired_speed if desired_speed is not None else self.target_speed or 100.0))
+        accel = 78.0 if desired > self.speed else 125.0
         self.speed = min(desired, self.speed + accel * dt) if self.speed < desired else max(desired, self.speed - accel * dt)
         vx, vy = DIRECTION_VECTORS[self.direction]
         self.x += vx * self.speed * dt
@@ -73,7 +75,6 @@ class Vehicle:
         return self.x > rect.right + margin
 
     def _oriented_points(self, rect: pygame.Rect):
-        # Nose points in travel direction to make front/rear readable.
         if self.direction == "NORTH":
             return [(rect.centerx, rect.bottom), (rect.x, rect.bottom-7), (rect.x, rect.y+7), (rect.centerx, rect.y), (rect.right, rect.y+7), (rect.right, rect.bottom-7)]
         if self.direction == "SOUTH":
@@ -91,7 +92,6 @@ class Vehicle:
         pygame.draw.polygon(surface, tuple(max(0, c-34) for c in self.color), self._oriented_points(rect.inflate(4, 4)))
         pygame.draw.polygon(surface, self.color, self._oriented_points(rect))
         pygame.draw.rect(surface, (255,255,255,55), rect.inflate(-8, -8), 1, border_radius=5)
-
         if horizontal:
             cabin = pygame.Rect(0, 0, max(11, rect.w//3), rect.h-6); cabin.centery = rect.centery
             cabin.centerx = rect.centerx + (-5 if self.direction == "EAST" else 5)
