@@ -9,13 +9,13 @@ COLORS = {
     "EAST": (245, 176, 82), "WEST": (203, 120, 244),
     "EMERGENCY": (245, 248, 255),
 }
-# Faster visual traffic so vehicles reach the junction early in a 15-second
-# expo test, while keeping different vehicle types visibly distinct.
+# Tuned for the 15-second expo test: fast enough to reach the junction early,
+# but slightly calmer so vehicles do not look unnaturally fast.
 VEHICLE_TYPES = {
-    "car": (34, 17, 108.0),
-    "truck": (48, 19, 92.0),
-    "bus": (58, 20, 84.0),
-    "emergency": (42, 18, 118.0),
+    "car": (34, 17, 102.0),
+    "truck": (48, 19, 87.0),
+    "bus": (58, 20, 79.0),
+    "emergency": (42, 18, 112.0),
 }
 
 @dataclass
